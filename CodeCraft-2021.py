@@ -6,7 +6,7 @@ import random
 import numpy as np
 import copy
 import time
-f='D:/新桌面/华为软件精英挑战赛/training-1.txt'
+f='training-1.txt'
 #获取数据：服务器、虚拟机、每日操作（按天分开）
 def Get_data(path):
     if os.path.exists(path):
