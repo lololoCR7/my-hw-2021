@@ -1,193 +1,142 @@
 import numpy as np
-f=open('training-1.txt',mode='r')
-line = f.read().strip().split("\n")
-lineR=np.asarray(line)
-for i in range(len(lineR)):
-    if '(' in lineR[i]:
-        lineR[i] = lineR[i].replace('(','').replace(')','')
-meaning = 0
-for i in range(len(lineR)):
-    if np.shape(lineR[i].split(","))==(1,):
-        meaning += 1
-        if meaning == 1:
-            server_num = lineR[i].split(",")[0]
-        elif meaning == 2:
-            machine_num = lineR[i].split(",")[0]
-        elif meaning == 3:
-            day_num = lineR[i].split(",")[0]
-#获取三个列表
-server_info = lineR[1:1+int(server_num),]
-machine_info = lineR[2+int(server_num):2+int(server_num)+int(machine_num),]
-day_info = lineR[3+int(server_num)+int(machine_num):,]
-day_op=[]
-for i in range(len(day_info)):
-    if day_info[i].split(", ")[0] == 'add' or day_info[i].split(", ")[0] == 'del':
-        day_op.append(day_info[i])
+import sys
+import os
+import re
+import random
+import numpy as np
+import copy
+import time
+f='D:/新桌面/华为软件精英挑战赛/training-1.txt'
+#获取数据：服务器、虚拟机、每日操作（按天分开）
+def Get_data(path):
+    if os.path.exists(path):
+        with open(path,'r') as data:
+            Lis=data.readlines()
+            Server=[]
+            Virtual=[]
+            counter=0
+            use_Case=[]
+            while Lis:
+                num=Lis[0].strip().split('\n')[0]
+                if num.isdigit():
+                    Lis=Lis[1:len(Lis)]
+                    last_num=int(num)
+                else:
+                    add_sentence=Lis[0:last_num]
+                    P=[]
+                    for i in range(len(add_sentence)):
+                        P_1=[]
+                        sentence = add_sentence[i]
+                        result=re.findall(r'[a-zA-Z0-9.]{1,}',sentence)
+                        for r_i in result:
+                            if r_i.isdigit():
+                                P_1.append(int(r_i))
+                            else:
+                                P_1.append(r_i)
+                        P.append(P_1)
+                    if counter==0:
+                        Server=P
+                    if counter==1:
+                        Virtual=P
+                    if counter>1:
+                        use_Case.append(P)
+                    counter+=1
+                    Lis=Lis[last_num:len(Lis)]
+    return Server,Virtual,use_Case
+server_info,machine_info,day_info = Get_data(f)
+server_num=len(server_info)
+machine_num=len(machine_info)
+day_num=len(day_info)
 #读取服务器信息
 def generateServer(server_name):
-    for i in range (int(server_num)):
-        if server_info[i].split(", ")[0] == server_name:
-            cpu_cores = int(server_info[i].split(", ")[1])
-            memory_size = int(server_info[i].split(", ")[2])
-            server_cost = int(server_info[i].split(", ")[3])
-            power_cost = int(server_info[i].split(", ")[4])
-            return np.array([server_name,cpu_cores//2 ,cpu_cores//2,memory_size//2,memory_size//2,server_cost,power_cost])
-#读取虚拟机信息
+    for i in range (server_num):
+        if server_info[i][0] == server_name:
+            cpu_cores = server_info[i][1]
+            memory_size = server_info[i][2]
+            server_cost = server_info[i][3]
+            power_cost = server_info[i][4]
+            info = [cpu_cores/2,cpu_cores/2,memory_size/2,memory_size/2,server_cost,power_cost]
+            return server_name, info
+ #读取虚拟机信息
 def generateMachine(machine_name):
-    for i in range (int(machine_num)):
-        if machine_info[i].split(", ")[0] == machine_name:
-            cpu_cores_ = int(machine_info[i].split(", ")[1])
-            memory_size_ = int(machine_info[i].split(", ")[2])
-            machine_type_ = int(machine_info[i].split(", ")[3])
-            info1 = [cpu_cores_, memory_size_, machine_type_]
-            return np.array([machine_name, cpu_cores_, memory_size_, machine_type_])
-machine_name_id = []
-for i in range(len(day_info)):
-    if day_info[i].split(", ")[0] == 'add':
-        machine_name = day_info[i].split(", ")[1]
-        machine_id = day_info[i].split(", ")[2]
-        machine_name_id.append([machine_name,machine_id])
-machine_name_id = np.array(machine_name_id)
-def Request(day_start,day_end):
-    vm = []
-    for i in range(int(day_start),int(day_end)):
-        if day_op[i].split(", ")[0] == 'add':
-            add_machine = day_op[i].split(", ")[1]
-            machine_id = day_op[i].split(", ")[2]
-            add_machine_info = generateMachine(add_machine)
-            vm.append(np.hstack([add_machine_info,np.array(machine_id),1]))     
-        elif day_op[i].split(", ")[0] == 'del':
-            machine_id = day_op[i].split(", ")[1]
-            for j in range (len(machine_name_id)):
-                if machine_name_id[j][1] == machine_id:
-                    del_machine = machine_name_id[j][0]
-                    del_machine_info = generateMachine(del_machine)
-                    vm.append(np.hstack([del_machine_info,np.array(machine_id),0]))
-    return np.array(vm)
-p = []
-def buy_server(server,num):
-    for i in range(int(server_num)):
-        if  server == server_info[i].split(', ')[0]:
-            for j in range (num):
-                p.append(generateServer(server))
-    return np.array(p)
-machine_server_on=['0','0','0','0']
-#machine_server_on=np.array([])
-def choose_server(machineName,serverId,vmId): 
-    global machine_server_on
-    need_info = generateMachine(machineName)
-    need_cpu = float(need_info[1])
-    need_mem = float(need_info[2])
-    need_type = int(need_info[3])
-    serverId = int(serverId)
-    if need_type == 1:
-        if float(p[serverId][1])>=need_cpu//2 and float(p[serverId][2])>=need_cpu//2 and float(p[serverId][3])>=need_mem//2 and float(p[serverId][4])>=need_mem//2:
-            p[serverId][1] = float(p[serverId][1]) - need_cpu//2
-            p[serverId][2] = float(p[serverId][2]) - need_cpu//2
-            p[serverId][3] = float(p[serverId][3]) - need_mem//2
-            p[serverId][4] = float(p[serverId][4]) - need_mem//2
-            #machine_server_on.append([machineName,serverId,12])
-            machine_server_on=np.row_stack((machine_server_on,[0,0,0,0]))
-            machine_server_on[-1][0]=machineName
-            machine_server_on[-1][1]=serverId
-            machine_server_on[-1][2]=12
-            machine_server_on[-1][3]=vmId
-            #machine_server_on=np.row_stack(machine_server_on,np.array([machineName,serverId,12]))
+    for i in range (machine_num):
+        if machine_info[i][0] == machine_name:
+            cpu_cores_ = machine_info[i][1]
+            memory_size_ = machine_info[i][2]
+            machine_type_ = machine_info[i][3]
+            info = [cpu_cores_,memory_size_,machine_type_]
+            return machine_name, info
+server=dict()#{server_id:[server_name,CPU_A,CPU_B,RAM_A,RAM_B]}
+machine_server_on=dict()#{machine_id:[machine_name,serverId,A/B]}
+machine_id_name=dict()#{machine_id:[machine_name]}
+for i in range(day_num):
+    for j in range(len(day_info[i])):
+        if day_info[i][j][0] == 'add':
+            machine_id_name[day_info[i][j][2]] = day_info[i][j][1]
+def purchase_server(server_name,num):
+    bought_num = len(server)
+    p=[]
+    for i in range (num):
+        server[bought_num+i]=[generateServer(server_name)[0],generateServer(server_name)[1][0],generateServer(server_name)[1][1],
+                                generateServer(server_name)[1][2],generateServer(server_name)[1][3]]
+    p.append([server_name,num])
+    return p
+purchase_server('hostUY41I',3000)
+def choose_server(machine_id,server_id):
+    machine_name = machine_id_name[machine_id]
+    need_info = generateMachine(machine_name)[1]
+    if need_info[-1] == 1:
+        if server[server_id][1]>=need_info[0]/2 and server[server_id][2]>=need_info[0]/2 and server[server_id][3]>=need_info[1]/2 and server[server_id][4]>=need_info[1]/2:
+            server[server_id][1]-=need_info[0]/2
+            server[server_id][2]-=need_info[0]/2
+            server[server_id][3]-=need_info[1]/2
+            server[server_id][4]-=need_info[1]/2
+            machine_server_on[machine_id]=[machine_name,int(server_id),int(0)]
+            return True
+        else :
+            return False
+    elif need_info[-1] == 0:
+        if server[server_id][1]>=need_info[0] and server[server_id][3]>=need_info[1]:
+            server[server_id][1]-=need_info[0]      
+            server[server_id][3]-=need_info[1]
+            machine_server_on[machine_id]=[machine_name,server_id,int(1)]
+            return True
+        elif server[server_id][2]>=need_info[0] and server[server_id][4]>=need_info[1]:
+            server[server_id][2]-=need_info[0]      
+            server[server_id][4]-=need_info[1]
+            machine_server_on[machine_id]=[machine_name,int(server_id),int(2)]
             return True
         else:
             return False
-    elif need_type == 0:
-        if float(p[serverId][1]) >= need_cpu and float(p[serverId][3]) >= need_mem:
-            p[serverId][1] = float(p[serverId][1])-need_cpu
-            p[serverId][3] = float(p[serverId][3])-need_mem
-            #machine_server_on.append([machineName,serverId,1])
-            machine_server_on=np.row_stack((machine_server_on,[0,0,0,0]))
-            machine_server_on[-1][0]=machineName
-            machine_server_on[-1][1]=serverId
-            machine_server_on[-1][2]=1
-            machine_server_on[-1][3]=vmId
-            #machine_server_on=np.row_stack(machine_server_on,np.array([machineName,serverId,1]))
-            return True
-        elif float(p[serverId][2]) >= need_cpu and float(p[serverId][4]) >= need_mem:
-            p[serverId][2] = float(p[serverId][2])-need_cpu
-            p[serverId][4] = float(p[serverId][4])-need_mem
-            #machine_server_on.append([machineName,serverId,2])
-            machine_server_on=np.row_stack((machine_server_on,[0,0,0,0]))
-            machine_server_on[-1][0]=machineName
-            machine_server_on[-1][1]=serverId
-            machine_server_on[-1][2]=2
-            machine_server_on[-1][3]=vmId
-            #machine_server_on=np.row_stack(machine_server_on,np.array([machineName,serverId,2]))
-            return True
+def delete_server(machine_id,server_id):
+    machine_name = machine_id_name[machine_id]
+    need_info = generateMachine(machine_name)[1]
+    if machine_id in machine_server_on.keys():
+        if need_info[-1] == 1:
+            server[server_id][1]+=need_info[0]/2
+            server[server_id][2]+=need_info[0]/2
+            server[server_id][3]+=need_info[1]/2
+            server[server_id][4]+=need_info[1]/2
+            del machine_server_on[machine_id]
         else:
-            return False
-def delete_machine(machineName,serverId,vmId):
-    global machine_server_on
-    need_info = generateMachine(machineName)
-    need_cpu = float(need_info[1])
-    need_mem = float(need_info[2])
-    need_type = int(need_info[3])
-    serverId = int(serverId)
-    l = int(np.argwhere(machine_server_on[:,3]==str(vmId)))
-    if need_type == 1:
-        p[serverId][1] = float(p[serverId][1])+need_cpu/2
-        p[serverId][2] = float(p[serverId][2])+need_cpu/2
-        p[serverId][3] = float(p[serverId][3])+need_mem/2
-        p[serverId][4] = float(p[serverId][4])+need_mem/2
-        machine_server_on=np.delete(machine_server_on,l,axis=0)
-    elif need_type == 0:
-        if machine_server_on[l][2] == '1':# and machine_server_on[i][1] == str(serverId) and machine_server_on[i][0] == machineName:
-            p[serverId][1] = float(p[serverId][1])+need_cpu
-            p[serverId][3] = float(p[serverId][3])+need_mem
-            machine_server_on=np.delete(machine_server_on,l,axis=0)
-        elif machine_server_on[l][2] == '2':# and machine_server_on[i][1] == str(serverId) and machine_server_on[i][0] == machineName:
-            p[serverId][2] = float(p[serverId][2])+need_cpu
-            p[serverId][4] = float(p[serverId][4])+need_mem
-            machine_server_on=np.delete(machine_server_on,l,axis=0)
-day_n=[]
-for i in range(len(day_info)):
-    if day_info[i].split(", ")[0] != 'add' and day_info[i].split(", ")[0] != 'del':
-        day_n.append(day_info[i])
-day_n = list(map(int, day_n))
-day_n_add = [sum(day_n[:y]) for y in range(1, len(day_n) + 1)]
-day_n_add.insert(0,0)
-buy_server('hostUY41I',2500)
-print('(purchase, 2500)')
-print('(hostUY41I, 2500)')
-print('(migration, 0)')
-out=[]
-all_info=['0',0]
-n_server = len(p)
-for i in range(int(day_num)):#int(day_num)
-    for j in Request(day_n_add[i],day_n_add[i+1]):
-        if j[-1] == '1':
+            if machine_server_on[machine_id][-1] == 1:
+                server[server_id][1]+=need_info[0]      
+                server[server_id][3]+=need_info[1]
+                del machine_server_on[machine_id]
+            else:
+                server[server_id][2]+=need_info[0]      
+                server[server_id][4]+=need_info[1]
+                del machine_server_on[machine_id]
+    else:
+        return False
+n_server = len(server)
+from tqdm import tqdm
+for i in tqdm(range(day_num)):
+#for i in range(int(day_num)):
+    for j in day_info[i]:
+        if j[0] == 'add':
             for u in range(n_server):
-                if choose_server(j[0],u,j[4]) == True:
-                    all_info=np.row_stack((all_info,[0,0]))
-                    all_info[-1,0] = j[4]
-                    all_info[-1,1] = u
-                    out.append(machine_server_on[-1,1:3])
+                if choose_server(j[-1],u) == True:
                     break
-        if j[-1] == '0':
-            u=int(np.argwhere(all_info[:,0]==j[4]))
-            delete_machine(j[0],int(all_info[u,1]),j[4])
-            all_info=np.delete(all_info,u,axis=0)
-    out.append(['day',i+1])
-
-def main():
-    for i in out:
-        if i[0] == 'day' and i[1] < int(day_num):#int(day_num)
-            print('(purchase, 0)')
-            print('(migration, 0)')
-        else:
-            if i[1] == '1':
-                print("(%d, A)" %(int(i[0])))
-            elif i[1] == '2':
-                print("(%d, B)" %(int(i[0])))
-            elif i[1] == '12':
-                print("(%d)" %(int(i[0])))
-    pass
-
-
-if __name__ == "__main__":
-    main()
+        if j[0] == 'del':
+            delete_server(j[-1],machine_server_on[j[-1]][1])
