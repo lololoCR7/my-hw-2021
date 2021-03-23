@@ -86,15 +86,12 @@ def choose_server(machine_id,server_id):
     machine_name = machine_id_name[machine_id]
     need_info = generateMachine(machine_name)[1]
     if need_info[-1] == 1:
-        if server[server_id][1]>=need_info[0]/2 and server[server_id][2]>=need_info[0]/2 and server[server_id][3]>=need_info[1]/2 and server[server_id][4]>=need_info[1]/2:
             server[server_id][1]-=need_info[0]/2
             server[server_id][2]-=need_info[0]/2
             server[server_id][3]-=need_info[1]/2
             server[server_id][4]-=need_info[1]/2
             machine_server_on[machine_id]=[machine_name,int(server_id),int(0)]
             return True
-        else :
-            return False
     elif need_info[-1] == 0:
         if server[server_id][1]>=need_info[0] and server[server_id][3]>=need_info[1]:
             server[server_id][1]-=need_info[0]      
@@ -106,8 +103,6 @@ def choose_server(machine_id,server_id):
             server[server_id][4]-=need_info[1]
             machine_server_on[machine_id]=[machine_name,int(server_id),int(2)]
             return True
-        else:
-            return False
 def delete_server(machine_id,server_id):
     machine_name = machine_id_name[machine_id]
     need_info = generateMachine(machine_name)[1]
@@ -129,14 +124,25 @@ def delete_server(machine_id,server_id):
                 del machine_server_on[machine_id]
     else:
         return False
-n_server = len(server)
-from tqdm import tqdm
-for i in tqdm(range(day_num)):
-#for i in range(int(day_num)):
+def can_use_server(machine_id):
+    can_use_A=dict()
+    can_use_B=dict()
+    can_use_server=dict()
+    machine_name = machine_id_name[machine_id]
+    need_info = generateMachine(machine_name)[1]
+    if need_info[-1] == 1:
+        can_use_A = {k: v for k, v in server.items() if v[1]>=need_info[0]/2 and v[2]>=need_info[0]/2 and v[3]>=need_info[1]/2 and v[4]>=need_info[1]/2}
+        sorted(can_use_A.keys())[0]
+        return sorted(can_use_A.keys())[0]
+    else:
+        can_use_A = {k: v for k, v in server.items() if v[1]>=need_info[0] and v[3]>=need_info[1]}
+        can_use_B = {k: v for k, v in server.items() if v[2]>=need_info[0] and v[4]>=need_info[1]}
+        return min(sorted(can_use_A.keys())[0],sorted(can_use_B.keys())[0])
+
+#from tqdm import tqdm
+for i in range(day_num):
     for j in day_info[i]:
         if j[0] == 'add':
-            for u in range(n_server):
-                if choose_server(j[-1],u) == True:
-                    break
+            choose_server(j[-1],can_use_server(j[-1]))
         if j[0] == 'del':
             delete_server(j[-1],machine_server_on[j[-1]][1])
